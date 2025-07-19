@@ -36,13 +36,15 @@ build: ## Build SAM application
 
 deploy: ## Deploy infrastructure and application (ENV=dev/staging/prod)
 	@echo "$(GREEN)Deploying to $(ENV) environment...$(NC)"
+	@echo "$(YELLOW)Loading environment variables...$(NC)"
+	@source .env && echo "Environment variables loaded"
 	@echo "$(YELLOW)Step 1: Deploying infrastructure with Terraform...$(NC)"
-	@cd terraform && terraform init
-	@cd terraform && terraform apply -var-file="environments/$(ENV).tfvars" -auto-approve
+	@source .env && cd terraform && terraform init
+	@source .env && cd terraform && terraform apply -var-file="environments/$(ENV).tfvars" -auto-approve
 	@echo "$(YELLOW)Step 2: Building and deploying serverless components...$(NC)"
 	@sam build --use-container
-	$(eval S3_BUCKET := $(shell aws ssm get-parameter --name "/chatbot/$(ENV)/s3/lambda_code_bucket" --query "Parameter.Value" --output text))
-	@sam deploy --s3-bucket $(S3_BUCKET) --parameter-overrides Environment=$(ENV) ProjectName=$(PROJECT_NAME) --no-confirm-changeset
+	$(eval S3_BUCKET := $(shell source .env && aws ssm get-parameter --name "/chatbot/$(ENV)/s3/lambda_code_bucket" --query "Parameter.Value" --output text))
+	@source .env && sam deploy --s3-bucket $(S3_BUCKET) --parameter-overrides Environment=$(ENV) ProjectName=$(PROJECT_NAME) --no-confirm-changeset
 	@echo "$(GREEN)✅ Deployment completed successfully!$(NC)"
 	@echo "$(GREEN)📋 Getting deployment information...$(NC)"
 	@make status
@@ -117,10 +119,20 @@ clean: ## Clean up temporary files
 
 destroy: ## Destroy AWS infrastructure
 	@echo "$(YELLOW)Destroying AWS infrastructure for $(ENV) environment...$(NC)"
+	@echo "$(YELLOW)Loading environment variables...$(NC)"
+	@source .env && echo "Environment variables loaded"
 	@echo "$(YELLOW)Step 1: Destroying SAM stack...$(NC)"
-	@aws cloudformation delete-stack --stack-name $(PROJECT_NAME)-$(ENV) || true
+	@source .env && if aws cloudformation describe-stacks --stack-name $(PROJECT_NAME)-$(ENV) >/dev/null 2>&1; then \
+		echo "$(YELLOW)Stack exists, proceeding with deletion...$(NC)"; \
+		aws cloudformation delete-stack --stack-name $(PROJECT_NAME)-$(ENV); \
+		echo "$(YELLOW)Waiting for SAM stack deletion to complete...$(NC)"; \
+		aws cloudformation wait stack-delete-complete --stack-name $(PROJECT_NAME)-$(ENV); \
+		echo "$(GREEN)✅ SAM stack destroyed successfully!$(NC)"; \
+	else \
+		echo "$(YELLOW)Stack $(PROJECT_NAME)-$(ENV) does not exist, skipping...$(NC)"; \
+	fi
 	@echo "$(YELLOW)Step 2: Destroying Terraform infrastructure...$(NC)"
-	@cd terraform && terraform destroy -var-file="environments/$(ENV).tfvars" -auto-approve
+	@source .env && cd terraform && terraform destroy -var-file="environments/$(ENV).tfvars" -auto-approve
 	@echo "$(GREEN)✅ Infrastructure destroyed successfully!$(NC)"
 
 status: ## Show deployment status

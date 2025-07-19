@@ -1,0 +1,22 @@
+# Example Environment Variables
+# Copy this file to create your own environment configuration
+# Example: cp terraform.tfvars.example terraform.tfvars
+
+# AWS Region
+aws_region = "us-east-1"
+
+# Project Configuration
+project_name = "aws-rag-chatbot"
+environment  = "sandbox"
+
+# OpenSearch Configuration
+opensearch_instance_type  = "t3.small.search"
+opensearch_instance_count = 1
+opensearch_volume_size    = 20
+
+# Lambda Configuration
+lambda_timeout     = 300
+lambda_memory_size = 512
+
+# Logging Configuration
+log_retention_days = 14
